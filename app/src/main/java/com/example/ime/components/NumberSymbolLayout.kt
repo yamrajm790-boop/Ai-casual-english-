@@ -1,46 +1,39 @@
 package com.example.ime.components
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
-import androidx.compose.material.icons.automirrored.filled.KeyboardReturn
+import androidx.compose.material.icons.filled.KeyboardReturn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.ime.KeyMode
+import androidx.compose.ui.unit.sp
+import com.example.ime.KeyboardMode
 
 @Composable
 fun NumberSymbolLayout(
-    keyMode: KeyMode,
-    onKeyTap: (String) -> Unit,
-    onDeleteTap: () -> Unit,
-    onEnterTap: () -> Unit,
-    onSwitchMode: (KeyMode) -> Unit,
-    modifier: Modifier = Modifier
+    isSymbols: Boolean,
+    onKeyPress: (String) -> Unit,
+    onBackspace: () -> Unit,
+    onSpace: () -> Unit,
+    onEnter: () -> Unit,
+    onModeChange: (KeyboardMode) -> Unit
 ) {
-    val isSymbols = keyMode == KeyMode.SYMBOLS
-
     val row1 = if (!isSymbols) listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
-               else listOf("~", "`", "|", "•", "√", "π", "÷", "×", "¶", "∆")
+    else listOf("~", "`", "|", "•", "√", "π", "÷", "×", "¶", "∆")
 
     val row2 = if (!isSymbols) listOf("@", "#", "$", "_", "&", "-", "+", "(", ")", "/")
-               else listOf("£", "¢", "€", "¥", "^", "°", "=", "{", "}", "\\")
+    else listOf("£", "¥", "€", "¢", "^", "°", "=", "{", "}", "\\")
 
     val row3 = if (!isSymbols) listOf("*", "\"", "'", ":", ";", "!", "?", "%")
-               else listOf("%", "©", "®", "™", "✓", "[", "]", "¡", "¿")
-
-    val keyBackground = MaterialTheme.colorScheme.surface
-    val actionKeyBackground = MaterialTheme.colorScheme.surfaceVariant
+    else listOf("%", "©", "®", "™", "✓", "[", "]", "…")
 
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 3.dp, vertical = 2.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -52,10 +45,9 @@ fun NumberSymbolLayout(
         ) {
             row1.forEach { char ->
                 KeyButton(
-                    label = char,
+                    text = char,
                     modifier = Modifier.weight(1f),
-                    backgroundColor = keyBackground,
-                    onTap = { onKeyTap(char) }
+                    onPress = { onKeyPress(char) }
                 )
             }
         }
@@ -67,10 +59,9 @@ fun NumberSymbolLayout(
         ) {
             row2.forEach { char ->
                 KeyButton(
-                    label = char,
+                    text = char,
                     modifier = Modifier.weight(1f),
-                    backgroundColor = keyBackground,
-                    onTap = { onKeyTap(char) }
+                    onPress = { onKeyPress(char) }
                 )
             }
         }
@@ -80,34 +71,33 @@ fun NumberSymbolLayout(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Toggle between 123 and =\<
-            KeyButton(
-                label = if (isSymbols) "123" else "=\\<",
-                modifier = Modifier.weight(1.4f),
-                backgroundColor = actionKeyBackground,
-                onTap = { onSwitchMode(if (isSymbols) KeyMode.NUMBERS else KeyMode.SYMBOLS) }
-            )
+            // Toggle Symbol / Numbers
+            KeySpecialButton(
+                modifier = Modifier.weight(1.3f),
+                onClick = {
+                    if (isSymbols) onModeChange(KeyboardMode.NUMBERS)
+                    else onModeChange(KeyboardMode.SYMBOLS)
+                }
+            ) {
+                Text(if (isSymbols) "123" else "=\\<", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
 
             row3.forEach { char ->
                 KeyButton(
-                    label = char,
+                    text = char,
                     modifier = Modifier.weight(1f),
-                    backgroundColor = keyBackground,
-                    onTap = { onKeyTap(char) }
+                    onPress = { onKeyPress(char) }
                 )
             }
 
-            // Delete Key
-            KeyIconButton(
-                modifier = Modifier.weight(1.4f),
-                backgroundColor = actionKeyBackground,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                onTap = onDeleteTap
+            KeySpecialButton(
+                modifier = Modifier.weight(1.3f),
+                onClick = onBackspace
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Backspace,
                     contentDescription = "Backspace",
-                    modifier = Modifier.height(20.dp)
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
@@ -117,48 +107,41 @@ fun NumberSymbolLayout(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // ABC Switcher
-            KeyButton(
-                label = "ABC",
+            KeySpecialButton(
                 modifier = Modifier.weight(1.3f),
-                backgroundColor = actionKeyBackground,
-                onTap = { onSwitchMode(KeyMode.QWERTY_LOWER) }
-            )
+                onClick = { onModeChange(KeyboardMode.QWERTY) }
+            ) {
+                Text("ABC", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
 
             KeyButton(
-                label = ",",
+                text = ",",
                 modifier = Modifier.weight(1f),
-                backgroundColor = keyBackground,
-                onTap = { onKeyTap(",") }
+                onPress = { onKeyPress(",") }
             )
 
-            // Spacebar
-            KeyButton(
-                label = "space",
-                modifier = Modifier.weight(4.5f),
-                backgroundColor = keyBackground,
-                textColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                onTap = { onKeyTap(" ") }
-            )
+            KeySpecialButton(
+                modifier = Modifier.weight(4.2f),
+                onClick = onSpace
+            ) {
+                Text("space", fontSize = 13.sp)
+            }
 
             KeyButton(
-                label = ".",
+                text = ".",
                 modifier = Modifier.weight(1f),
-                backgroundColor = keyBackground,
-                onTap = { onKeyTap(".") }
+                onPress = { onKeyPress(".") }
             )
 
-            // Enter Key
-            KeyIconButton(
-                modifier = Modifier.weight(1.4f),
-                backgroundColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                onTap = onEnterTap
+            KeySpecialButton(
+                modifier = Modifier.weight(1.5f),
+                onClick = onEnter,
+                isHighlight = true
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardReturn,
+                    imageVector = Icons.Default.KeyboardReturn,
                     contentDescription = "Enter",
-                    modifier = Modifier.height(20.dp)
+                    tint = MaterialTheme.colorScheme.onPrimary
                 )
             }
         }

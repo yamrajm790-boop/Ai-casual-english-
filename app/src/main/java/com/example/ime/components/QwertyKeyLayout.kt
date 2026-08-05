@@ -1,256 +1,188 @@
 package com.example.ime.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
-import androidx.compose.material.icons.automirrored.filled.KeyboardReturn
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.KeyboardReturn
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ime.KeyMode
+import com.example.ime.KeyboardMode
+import com.example.ime.ShiftState
 
 @Composable
 fun QwertyKeyLayout(
-    keyMode: KeyMode,
-    onKeyTap: (String) -> Unit,
-    onKeyLongPress: (String) -> Unit,
-    onShiftTap: () -> Unit,
-    onDeleteTap: () -> Unit,
-    onEnterTap: () -> Unit,
-    onSpaceSwipe: (Int) -> Unit,
-    onGlobeTap: () -> Unit,
-    onGlobeLongPress: () -> Unit,
-    onSwitchMode: (KeyMode) -> Unit,
-    modifier: Modifier = Modifier
+    shiftState: ShiftState,
+    onKeyPress: (String) -> Unit,
+    onBackspace: () -> Unit,
+    onSpace: () -> Unit,
+    onEnter: () -> Unit,
+    onShiftClick: () -> Unit,
+    onModeChange: (KeyboardMode) -> Unit,
+    onLongPressKey: (String) -> Unit
 ) {
-    val isUpper = keyMode == KeyMode.QWERTY_UPPER || keyMode == KeyMode.QWERTY_CAPS_LOCK
-
     val row1 = listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p")
     val row2 = listOf("a", "s", "d", "f", "g", "h", "j", "k", "l")
     val row3 = listOf("z", "x", "c", "v", "b", "n", "m")
 
-    val keyBackground = MaterialTheme.colorScheme.surface
-    val actionKeyBackground = MaterialTheme.colorScheme.surfaceVariant
-    val activeShiftColor = if (keyMode == KeyMode.QWERTY_CAPS_LOCK) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 4.dp),
+            .padding(horizontal = 3.dp, vertical = 2.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Row 1 (Q - P)
+        // Row 1
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             row1.forEach { char ->
-                val displayChar = if (isUpper) char.uppercase() else char
+                val displayChar = if (shiftState != ShiftState.OFF) char.uppercase() else char
                 KeyButton(
-                    label = displayChar,
+                    text = displayChar,
                     modifier = Modifier.weight(1f),
-                    backgroundColor = keyBackground,
-                    onTap = { onKeyTap(displayChar) },
-                    onLongPress = { onKeyLongPress(char) }
+                    onPress = { onKeyPress(displayChar) },
+                    onLongPress = { onLongPressKey(char) }
                 )
             }
         }
 
-        // Row 2 (A - L)
+        // Row 2
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Spacer(modifier = Modifier.weight(0.5f))
             row2.forEach { char ->
-                val displayChar = if (isUpper) char.uppercase() else char
+                val displayChar = if (shiftState != ShiftState.OFF) char.uppercase() else char
                 KeyButton(
-                    label = displayChar,
+                    text = displayChar,
                     modifier = Modifier.weight(1f),
-                    backgroundColor = keyBackground,
-                    onTap = { onKeyTap(displayChar) },
-                    onLongPress = { onKeyLongPress(char) }
+                    onPress = { onKeyPress(displayChar) },
+                    onLongPress = { onLongPressKey(char) }
                 )
             }
-            Spacer(modifier = Modifier.weight(0.5f))
         }
 
-        // Row 3 (Shift, Z-M, Delete)
+        // Row 3 (Shift, Z-M, Backspace)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Shift Key
-            KeyIconButton(
-                modifier = Modifier.weight(1.4f),
-                backgroundColor = if (isUpper) activeShiftColor else actionKeyBackground,
-                contentColor = if (isUpper) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                onTap = onShiftTap
+            // Shift key
+            KeySpecialButton(
+                modifier = Modifier.weight(1.3f),
+                onClick = onShiftClick,
+                isHighlight = shiftState != ShiftState.OFF
             ) {
                 Icon(
-                    imageVector = Icons.Default.ArrowUpward,
+                    imageVector = when (shiftState) {
+                        ShiftState.CAPS_LOCK -> Icons.Default.Lock
+                        ShiftState.ON -> Icons.Default.ArrowUpward
+                        ShiftState.OFF -> Icons.Default.ArrowUpward
+                    },
                     contentDescription = "Shift",
-                    modifier = Modifier.height(20.dp)
+                    tint = if (shiftState != ShiftState.OFF) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 )
             }
 
             row3.forEach { char ->
-                val displayChar = if (isUpper) char.uppercase() else char
+                val displayChar = if (shiftState != ShiftState.OFF) char.uppercase() else char
                 KeyButton(
-                    label = displayChar,
+                    text = displayChar,
                     modifier = Modifier.weight(1f),
-                    backgroundColor = keyBackground,
-                    onTap = { onKeyTap(displayChar) },
-                    onLongPress = { onKeyLongPress(char) }
+                    onPress = { onKeyPress(displayChar) },
+                    onLongPress = { onLongPressKey(char) }
                 )
             }
 
-            // Delete Key
-            KeyIconButton(
-                modifier = Modifier.weight(1.4f),
-                backgroundColor = actionKeyBackground,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                onTap = onDeleteTap
+            // Backspace key
+            KeySpecialButton(
+                modifier = Modifier.weight(1.3f),
+                onClick = onBackspace
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Backspace,
                     contentDescription = "Backspace",
-                    modifier = Modifier.height(20.dp)
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
 
-        // Row 4: Bottom Row -> [123 | Emoji | Space | . | Globe (🌐) | Enter]
+        // Row 4 (Mode Switch, Emoji, Space, Period, Enter)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // 123 Button
-            KeyButton(
-                label = "123",
-                modifier = Modifier.weight(1.2f),
-                backgroundColor = actionKeyBackground,
-                onTap = { onSwitchMode(KeyMode.NUMBERS) }
-            )
+            // ?123
+            KeySpecialButton(
+                modifier = Modifier.weight(1.3f),
+                onClick = { onModeChange(KeyboardMode.NUMBERS) }
+            ) {
+                Text("?123", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
 
-            // Emoji Button
-            KeyIconButton(
+            // Emoji
+            KeySpecialButton(
                 modifier = Modifier.weight(1f),
-                backgroundColor = actionKeyBackground,
-                onTap = { onSwitchMode(KeyMode.EMOJI) }
+                onClick = { onModeChange(KeyboardMode.EMOJI) }
             ) {
                 Icon(
                     imageVector = Icons.Default.EmojiEmotions,
-                    contentDescription = "Emoji Picker",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.height(20.dp)
+                    contentDescription = "Emoji",
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
 
-            // Spacebar (with swipe cursor detection)
-            var totalDragX by remember { mutableFloatStateOf(0f) }
+            // Spacebar
             Box(
                 modifier = Modifier
                     .weight(4.2f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(keyBackground)
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onTap = { onKeyTap(" ") }
-                        )
-                    }
-                    .pointerInput(Unit) {
-                        detectDragGestures(
-                            onDragStart = { totalDragX = 0f },
-                            onDragEnd = { totalDragX = 0f },
-                            onDragCancel = { totalDragX = 0f },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                totalDragX += dragAmount.x
-                                if (totalDragX > 30f) {
-                                    onSpaceSwipe(1) // Cursor right
-                                    totalDragX = 0f
-                                } else if (totalDragX < -30f) {
-                                    onSpaceSwipe(-1) // Cursor left
-                                    totalDragX = 0f
-                                }
-                            }
-                        )
-                    },
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { onSpace() },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "English",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
+                Text("English (AI Casual)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            // Period Key
+            // Period
             KeyButton(
-                label = ".",
+                text = ".",
                 modifier = Modifier.weight(1f),
-                backgroundColor = keyBackground,
-                onTap = { onKeyTap(".") },
-                onLongPress = { onKeyLongPress(".") }
+                onPress = { onKeyPress(".") },
+                onLongPress = { onKeyPress(",") }
             )
 
-            // Globe / Switch Keyboard Key (🌐)
-            KeyIconButton(
-                modifier = Modifier.weight(1f),
-                backgroundColor = actionKeyBackground,
-                onTap = onGlobeTap,
-                onLongPress = onGlobeLongPress
+            // Enter / Action
+            KeySpecialButton(
+                modifier = Modifier.weight(1.5f),
+                onClick = onEnter,
+                isHighlight = true
             ) {
                 Icon(
-                    imageVector = Icons.Default.Language,
-                    contentDescription = "Switch Keyboard",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.height(20.dp)
-                )
-            }
-
-            // Enter Key
-            KeyIconButton(
-                modifier = Modifier.weight(1.3f),
-                backgroundColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                onTap = onEnterTap
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardReturn,
+                    imageVector = Icons.Default.KeyboardReturn,
                     contentDescription = "Enter",
-                    modifier = Modifier.height(20.dp)
+                    tint = MaterialTheme.colorScheme.onPrimary
                 )
             }
         }
@@ -259,67 +191,51 @@ fun QwertyKeyLayout(
 
 @Composable
 fun KeyButton(
-    label: String,
+    text: String,
     modifier: Modifier = Modifier,
-    backgroundColor: Color,
-    textColor: Color = MaterialTheme.colorScheme.onSurface,
-    onTap: () -> Unit,
+    onPress: () -> Unit,
     onLongPress: (() -> Unit)? = null
 ) {
-    Surface(
+    Box(
         modifier = modifier
-            .height(48.dp)
-            .pointerInput(label) {
+            .height(44.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = { onTap() },
+                    onTap = { onPress() },
                     onLongPress = { onLongPress?.invoke() }
                 )
             },
-        shape = RoundedCornerShape(14.dp),
-        color = backgroundColor,
-        shadowElevation = 1.dp
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = label,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Normal,
-                color = textColor
-            )
-        }
+        Text(
+            text = text,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
 @Composable
-fun KeyIconButton(
+fun KeySpecialButton(
     modifier: Modifier = Modifier,
-    backgroundColor: Color,
-    contentColor: Color = MaterialTheme.colorScheme.onSurface,
-    onTap: () -> Unit,
-    onLongPress: (() -> Unit)? = null,
+    onClick: () -> Unit,
+    isHighlight: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    Surface(
+    Box(
         modifier = modifier
-            .height(48.dp)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { onTap() },
-                    onLongPress = { onLongPress?.invoke() }
-                )
-            },
-        shape = RoundedCornerShape(14.dp),
-        color = backgroundColor,
-        contentColor = contentColor,
-        shadowElevation = 1.dp
+            .height(44.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (isHighlight) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant
+            )
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            contentAlignment = Alignment.Center
-        ) {
-            content()
-        }
+        content()
     }
 }
-

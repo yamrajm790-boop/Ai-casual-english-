@@ -29,10 +29,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build Debug APK
-        run: gradle :app:assembleDebug
+        run: gradle :app:assembleDebug --no-daemon -Dorg.gradle.parallel=false
 
       - name: Build Release APK
-        run: gradle :app:assembleRelease || true
+        run: gradle :app:assembleRelease --no-daemon -Dorg.gradle.parallel=false || true
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
@@ -55,10 +55,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install backend dependencies
         run: |

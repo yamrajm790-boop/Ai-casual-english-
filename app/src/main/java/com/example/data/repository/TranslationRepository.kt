@@ -94,9 +94,9 @@ class TranslationRepository(context: Context) {
     }
 
     private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
         .addInterceptor(loggingInterceptor)
         .build()
 
@@ -276,8 +276,9 @@ class TranslationRepository(context: Context) {
 
     private fun extractFromMap(map: Map<String, Any?>): String? {
         val candidateKeys = listOf(
-            "translated", "translation", "text", "output", "response",
-            "answer", "content", "message", "result", "generatedText"
+            "translated", "translatedText", "translated_text", "translation",
+            "text", "output", "response", "answer", "content", "message",
+            "result", "generatedText", "english", "englishText", "english_text"
         )
 
         for (key in candidateKeys) {

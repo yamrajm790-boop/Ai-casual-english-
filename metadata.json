@@ -1,0 +1,6 @@
+{
+  "name": "AI Casual English Keyboard",
+  "description": "Custom Android Keyboard (IME) that translates any language into natural casual spoken English directly while typing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

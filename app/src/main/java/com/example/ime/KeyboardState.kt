@@ -20,7 +20,7 @@ data class KeyboardUiState(
     val vibrationEnabled: Boolean = true,
     val soundEnabled: Boolean = false,
     val darkTheme: Boolean = true,
-    val backendUrl: String = "https://ai-casual-english-keyboard.onrender.com",
+    val backendUrl: String = "https://ai-casual-english-backend.onrender.com",
     val geminiKey: String = "",
     val longPressKey: String? = null,
     val longPressOptions: List<String> = emptyList()

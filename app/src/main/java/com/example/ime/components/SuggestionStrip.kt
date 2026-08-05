@@ -114,7 +114,7 @@ fun SuggestionStrip(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (englishPreviewText.isNotBlank()) englishPreviewText else if (isTranslating) "Rewriting in casual English..." else "Casual English Preview",
+                            text = if (englishPreviewText.isNotBlank()) englishPreviewText else if (isTranslating) "Connecting..." else "Casual English Preview",
                             fontSize = 14.sp,
                             fontWeight = if (englishPreviewText.isNotBlank()) FontWeight.SemiBold else FontWeight.Normal,
                             color = if (englishPreviewText.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),

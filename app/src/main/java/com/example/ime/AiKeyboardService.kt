@@ -14,6 +14,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
+import android.widget.Toast
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -401,6 +403,13 @@ class AiKeyboardService : InputMethodService(), LifecycleOwner, SavedStateRegist
                 }
                 is TranslationResult.Error -> {
                     uiState = uiState.copy(isTranslating = false)
+                    withContext(Dispatchers.Main) {
+                        try {
+                            Toast.makeText(this@AiKeyboardService, "Translation: ${result.message}", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Log.e("AiKeyboardService", "Could not show error toast: ${e.message}")
+                        }
+                    }
                 }
             }
         }
@@ -462,6 +471,13 @@ class AiKeyboardService : InputMethodService(), LifecycleOwner, SavedStateRegist
                 }
                 is TranslationResult.Error -> {
                     Log.e("AiKeyboardService", "Translation error: ${result.message}")
+                    withContext(Dispatchers.Main) {
+                        try {
+                            Toast.makeText(this@AiKeyboardService, "Translation: ${result.message}", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Log.e("AiKeyboardService", "Could not show error toast: ${e.message}")
+                        }
+                    }
                 }
             }
         }

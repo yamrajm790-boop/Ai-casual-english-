@@ -24,7 +24,7 @@ class DataStoreManager(private val context: Context) {
         val KEY_GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val KEY_AUTO_CAPITALIZE = booleanPreferencesKey("auto_capitalize")
 
-        const val DEFAULT_BACKEND_URL = "https://ai-casual-english-keyboard.onrender.com"
+        const val DEFAULT_BACKEND_URL = "https://ai-casual-english-backend.onrender.com"
     }
 
     val themeMode: Flow<String> = context.dataStore.data.map { prefs ->

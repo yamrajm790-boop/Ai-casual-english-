@@ -1,18 +1,16 @@
 const fetch = require('node-fetch');
 const logger = require('../utils/logger');
 
-const SYSTEM_PROMPT = "You are an expert translator. Convert the user's text into natural casual spoken English. Never explain. Never add notes. Return only translated sentence.";
+const SYSTEM_PROMPT = "You are an expert translator and native English speaker. Convert the input text (Hindi, Roman Hindi, Odia, Bengali, Telugu, Tamil, Gujarati, Marathi, Punjabi, or mixed language) into natural, casual, everyday spoken English. Never translate word-for-word. Never explain. Never add quotes or notes. Return ONLY the translated casual English sentence.";
 
+// Strict list of FREE OpenRouter models in prioritized fallback order
 const FREE_MODELS_POOL = [
-  "inclusionai/ling-3.0-flash:free",
-  "poolside/laguna-s-2.1:free",
   "poolside/laguna-xs-2.1:free",
-  "google/gemma-4-26b-a4b-it:free",
-  "google/gemma-4-31b-it:free",
+  "poolside/laguna-s-2.1:free",
+  "inclusionai/ling-3.0-flash:free",
+  "google/gemma-3-27b-it:free",
   "cohere/north-mini-code:free",
-  "nvidia/nemotron-3-nano-30b-a3b:free",
-  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-  "google/gemini-2.5-flash"
+  "nvidia/nemotron-3-nano-30b-a3b:free"
 ];
 
 async function translateWithOpenRouter(text) {
@@ -24,9 +22,9 @@ async function translateWithOpenRouter(text) {
     return fallbackCasualTranslation(text);
   }
 
-  // Priority queue of models: process.env.OPENROUTER_MODEL first, followed by free models pool
+  // Priority queue of FREE models only
   const modelsToTry = [];
-  if (configuredModel) {
+  if (configuredModel && configuredModel.includes(':free')) {
     modelsToTry.push(configuredModel);
   }
   FREE_MODELS_POOL.forEach(m => {
@@ -37,7 +35,7 @@ async function translateWithOpenRouter(text) {
 
   for (const modelCandidate of modelsToTry) {
     try {
-      logger.info(`Attempting translation with OpenRouter model: ${modelCandidate}`);
+      logger.info(`Attempting translation with free OpenRouter model: ${modelCandidate}`);
       const payload = {
         model: modelCandidate,
         messages: [
@@ -53,39 +51,43 @@ async function translateWithOpenRouter(text) {
         headers: {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://ai-casual-english-keyboard.onrender.com",
+          "HTTP-Referer": "https://ai-casual-english-backend.onrender.com",
           "X-Title": "AI Casual English Keyboard"
         },
         body: JSON.stringify(payload),
-        timeout: 8000
+        timeout: 10000
       });
 
       if (!response.ok) {
         const errText = await response.text();
-        logger.warn(`Model ${modelCandidate} failed with status ${response.status}`, { error: errText });
-        continue; // Try next model candidate in pool
+        logger.warn(`Free model ${modelCandidate} failed with status ${response.status}`, { error: errText });
+        continue; // Try next free model in pool
       }
 
       const data = await response.json();
       const content = data?.choices?.[0]?.message?.content?.trim();
 
       if (content) {
-        logger.info(`Successfully translated using model: ${modelCandidate}`);
+        logger.info(`Successfully translated using backend free model: ${modelCandidate}`);
         return content.replace(/^["']|["']$/g, ''); // Remove outer quotes
       }
     } catch (err) {
-      logger.warn(`Failed model ${modelCandidate}: ${err.message}. Trying next candidate.`);
+      logger.warn(`Failed free model ${modelCandidate}: ${err.message}. Retrying next free model...`);
     }
   }
 
-  logger.warn("All OpenRouter models failed or timed out. Using local fallback translation.");
+  logger.warn("All free OpenRouter models failed or timed out. Using server fallback translation.");
   return fallbackCasualTranslation(text);
 }
 
 function fallbackCasualTranslation(text) {
   const lower = text.trim().toLowerCase();
-  if (lower.includes("main ghar ja raha") || lower.includes("mu office jauchi")) return "I'm heading home.";
-  if (lower.includes("ami kheyechi")) return "I already ate.";
+  if (lower.includes("main kal nahi aaunga") || lower.includes("kal nahi aaunga")) return "I won't come tomorrow.";
+  if (lower.includes("mu office jauchi") || lower.includes("office jauchi")) return "I'm heading to the office.";
+  if (lower.includes("ami bari jacchi") || lower.includes("bari jacchi")) return "I'm heading home.";
+  if (lower.includes("nenu intiki velthunna") || lower.includes("intiki velthunna")) return "I'm heading home.";
+  if (lower.includes("main ghar ja raha") || lower.includes("ghar ja raha")) return "I'm heading home.";
+  if (lower.includes("ami kheyechi") || lower.includes("khana khaya")) return "I already ate.";
   if (lower.includes("nenu vachanu")) return "I'm here.";
   if (lower.includes("kaise ho") || lower.includes("kan karuchu")) return "What's up?";
 
@@ -94,3 +96,4 @@ function fallbackCasualTranslation(text) {
 }
 
 module.exports = { translateWithOpenRouter };
+

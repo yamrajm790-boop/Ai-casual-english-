@@ -421,7 +421,7 @@ class AiKeyboardService : InputMethodService(), LifecycleOwner, SavedStateRegist
         if (textToTranslate.isBlank()) return
 
         autoTranslationJob = serviceScope.launch {
-            delay(350) // Smooth 350ms typing debounce
+            delay(300) // 300ms typing debounce
             uiState = uiState.copy(isTranslating = true)
 
             val backendUrl = dataStoreManager.backendUrl.first()

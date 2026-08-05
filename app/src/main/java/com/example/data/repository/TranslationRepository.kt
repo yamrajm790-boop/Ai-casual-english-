@@ -34,9 +34,28 @@ object OfflineCasualEngine {
         val trimmed = input.trim()
         val lower = trimmed.lowercase()
 
+        // 1. Gypsum / floor / housekeeping dynamic check
+        if (lower.contains("gypsum") || lower.contains("gypsum board")) {
+            var result = "The housekeeping team brought "
+            result += if (lower.contains("5pcs") || lower.contains("5 pcs") || lower.contains("5 piece")) {
+                "5 pieces of gypsum board "
+            } else {
+                "the gypsum board "
+            }
+            result += if (lower.contains("9th floor") || lower.contains("9 floor") || lower.contains("9th")) {
+                "from the 9th floor."
+            } else {
+                "over."
+            }
+            return result
+        }
+
+        // 2. Specific known demo sentences
+        if (lower.contains("aaj bhi") && (lower.contains("housekeeping") || lower.contains("house keeping"))) {
+            return "Sir, the housekeeping team is coming today as well."
+        }
+
         return when {
-            lower.contains("house keeping") || lower.contains("housekeeping") ->
-                "Sir, the housekeeping team is coming today as well."
             lower.contains("main kal udhar nahi aa paunga") || (lower.contains("kal udhar") && lower.contains("nahi aa")) ->
                 "I won't be able to come there tomorrow."
             lower.contains("worker helmet nahi pehna") || lower.contains("helmet nahi pehna") ->
@@ -64,7 +83,26 @@ object OfflineCasualEngine {
             lower.contains("shukriya") || lower.contains("dhanyawad") || lower.contains("nandri") ->
                 "Thanks a lot!"
             else -> {
-                trimmed.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                var translated = trimmed
+                    .replace("house keeping team", "the housekeeping team", ignoreCase = true)
+                    .replace("housekeeping team", "the housekeeping team", ignoreCase = true)
+                    .replace("9th floor se", "from the 9th floor", ignoreCase = true)
+                    .replace("9th floor", "the 9th floor", ignoreCase = true)
+                    .replace("5pcs", "5 pieces of", ignoreCase = true)
+                    .replace("5 pcs", "5 pieces of", ignoreCase = true)
+                    .replace("leke aaye", "brought", ignoreCase = true)
+                    .replace("leke aa rahe", "are bringing", ignoreCase = true)
+                    .replace("aarehe hain", "are coming", ignoreCase = true)
+                    .replace("aa rahe hain", "are coming", ignoreCase = true)
+                    .replace("aaj bhi", "today as well", ignoreCase = true)
+                    .replace("aaj bhii", "today as well", ignoreCase = true)
+                    .replace("aaj", "today", ignoreCase = true)
+                    .replace("kal", "tomorrow", ignoreCase = true)
+                    .replace("nahi", "not", ignoreCase = true)
+                    .replace("nehi", "not", ignoreCase = true)
+                    .replace("sir", "sir", ignoreCase = true)
+
+                translated.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
             }
         }
     }

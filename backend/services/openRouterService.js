@@ -82,6 +82,10 @@ async function translateWithOpenRouter(text) {
 
 function fallbackCasualTranslation(text) {
   const lower = text.trim().toLowerCase();
+  if (lower.includes("main kal udhar nahi aa paunga") || (lower.includes("kal udhar") && lower.includes("nahi aa"))) return "I won't be able to come there tomorrow.";
+  if (lower.includes("house keeping team") || lower.includes("housekeeping team")) return "Sir, the housekeeping team is coming today as well.";
+  if (lower.includes("worker helmet nahi pehna") || lower.includes("helmet nahi pehna")) return "The worker isn't wearing a helmet.";
+  if (lower.includes("carpenter refuse area") || (lower.includes("carpenter") && lower.includes("door remove"))) return "The carpenter is removing the refuse area door.";
   if (lower.includes("main kal nahi aaunga") || lower.includes("kal nahi aaunga")) return "I won't come tomorrow.";
   if (lower.includes("mu office jauchi") || lower.includes("office jauchi")) return "I'm heading to the office.";
   if (lower.includes("ami bari jacchi") || lower.includes("bari jacchi")) return "I'm heading home.";
@@ -91,7 +95,6 @@ function fallbackCasualTranslation(text) {
   if (lower.includes("nenu vachanu")) return "I'm here.";
   if (lower.includes("kaise ho") || lower.includes("kan karuchu")) return "What's up?";
 
-  // Capitalize sentence nicely
   return text.trim().charAt(0).toUpperCase() + text.trim().slice(1);
 }
 

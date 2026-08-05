@@ -258,6 +258,45 @@ class AiKeyboardService : InputMethodService(), LifecycleOwner, SavedStateRegist
             return
         }
 
+        val typed = uiState.currentComposingText
+        if (typed.isNotBlank()) {
+            autoTranslationJob?.cancel()
+            uiState = uiState.copy(isTranslating = true)
+
+            serviceScope.launch {
+                val backendUrl = dataStoreManager.backendUrl.first()
+                val geminiKey = dataStoreManager.geminiApiKey.first()
+
+                val result = repository.translateText(
+                    text = typed,
+                    backendUrl = backendUrl,
+                    customGeminiKey = geminiKey
+                )
+
+                uiState = uiState.copy(isTranslating = false)
+
+                when (result) {
+                    is TranslationResult.Success -> {
+                        val translatedText = result.translatedText
+                        ic.deleteSurroundingText(typed.length, 0)
+                        ic.commitText(translatedText, 1)
+                        uiState = uiState.copy(
+                            currentComposingText = "",
+                            englishPreviewText = ""
+                        )
+                    }
+                    is TranslationResult.Error -> {
+                        sendDefaultEnterOrAction(ic)
+                    }
+                }
+            }
+            return
+        }
+
+        sendDefaultEnterOrAction(ic)
+    }
+
+    private fun sendDefaultEnterOrAction(ic: InputConnection) {
         val editorInfo = currentInputEditorInfo
         val action = if (editorInfo != null) {
             editorInfo.imeOptions and EditorInfo.IME_MASK_ACTION

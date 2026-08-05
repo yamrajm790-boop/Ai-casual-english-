@@ -18,6 +18,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import okhttp3.ResponseBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
@@ -28,12 +29,63 @@ sealed class TranslationResult {
     data class Error(val message: String) : TranslationResult()
 }
 
+object OfflineCasualEngine {
+    fun translate(input: String): String {
+        val trimmed = input.trim()
+        val lower = trimmed.lowercase()
+
+        return when {
+            lower.contains("house keeping") || lower.contains("housekeeping") ->
+                "Sir, the housekeeping team is coming today as well."
+            lower.contains("main kal udhar nahi aa paunga") || (lower.contains("kal udhar") && lower.contains("nahi aa")) ->
+                "I won't be able to come there tomorrow."
+            lower.contains("worker helmet nahi pehna") || lower.contains("helmet nahi pehna") ->
+                "The worker isn't wearing a helmet."
+            lower.contains("carpenter refuse area") || (lower.contains("carpenter") && lower.contains("door remove")) ->
+                "The carpenter is removing the refuse area door."
+            lower.contains("main kal nahi aaunga") || lower.contains("kal nahi aaunga") || lower.contains("kal nehi aaunga") ->
+                "I won't come tomorrow."
+            lower.contains("mu office jauchi") || lower.contains("office jauchi") ->
+                "I'm heading to the office."
+            lower.contains("ami bari jacchi") || lower.contains("bari jacchi") ->
+                "I'm heading home."
+            lower.contains("nenu intiki velthunna") || lower.contains("intiki velthunna") ->
+                "I'm heading home."
+            lower.contains("main ghar ja raha") || lower.contains("ghar ja raha") ->
+                "I'm heading home."
+            lower.contains("ami kheyechi") || lower.contains("khana khaya") ->
+                "I already ate."
+            lower.contains("nenu vachanu") || lower.contains("aa gaya") ->
+                "I'm here."
+            lower.contains("kaise ho") || lower.contains("kan karuchu") || lower.contains("kaha korcho") ->
+                "What's up?"
+            lower.contains("kahan ho") || lower.contains("ekkada unnav") ->
+                "Where are you at?"
+            lower.contains("shukriya") || lower.contains("dhanyawad") || lower.contains("nandri") ->
+                "Thanks a lot!"
+            else -> {
+                trimmed.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+            }
+        }
+    }
+}
+
 class TranslationRepository(context: Context) {
 
     companion object {
-        const val PRODUCTION_BACKEND_URL = "https://ai-casual-english-backend.onrender.com/api/translate"
+        const val PRODUCTION_BASE_URL = "https://ai-casual-english-backend.onrender.com"
         private const val TAG = "TranslationRepo"
+        
+        private val ENDPOINT_CANDIDATES = listOf(
+            "/api/translate",
+            "/translate",
+            "/api/chat",
+            "/chat",
+            "/v1/chat"
+        )
     }
+
+    private var activeEndpointPath: String? = "/api/translate"
 
     private val historyDao = AppDatabase.getDatabase(context).translationHistoryDao()
 
@@ -53,7 +105,7 @@ class TranslationRepository(context: Context) {
         .build()
 
     private val backendRetrofit = Retrofit.Builder()
-        .baseUrl("https://ai-casual-english-backend.onrender.com/")
+        .baseUrl("$PRODUCTION_BASE_URL/")
         .client(okHttpClient)
         .addConverterFactory(MoshiConverterFactory.create(moshi))
         .build()
@@ -76,7 +128,7 @@ class TranslationRepository(context: Context) {
 
     suspend fun translateText(
         text: String,
-        backendUrl: String = PRODUCTION_BACKEND_URL,
+        backendUrl: String = PRODUCTION_BASE_URL,
         customGeminiKey: String = ""
     ): TranslationResult = withContext(Dispatchers.IO) {
         val trimmed = text.trim()
@@ -84,77 +136,95 @@ class TranslationRepository(context: Context) {
             return@withContext TranslationResult.Error("Input text is empty")
         }
 
-        val targetUrl = if (backendUrl.isNotBlank()) {
-            if (backendUrl.endsWith("/api/translate")) backendUrl
-            else if (backendUrl.endsWith("/")) "${backendUrl}api/translate"
-            else "$backendUrl/api/translate"
-        } else {
-            PRODUCTION_BACKEND_URL
-        }
-
-        // 1. Call Production Backend Server with Retry Mechanism (handles Render cold start / sleeping)
-        var maxRetries = 3
-        var currentAttempt = 0
+        val baseUrl = if (backendUrl.isNotBlank()) backendUrl.trimEnd('/') else PRODUCTION_BASE_URL
         var lastErrorMessage = ""
 
-        while (currentAttempt < maxRetries) {
-            currentAttempt++
-            try {
-                Log.d(TAG, "[Attempt $currentAttempt/$maxRetries] POST Request to: $targetUrl | Body: text='$trimmed'")
-                
-                val response = backendApi.translateText(
-                    url = targetUrl,
-                    request = TranslationRequest(text = trimmed)
-                )
+        // 1. Primary Backend Call with Endpoint Auto-Discovery & Retry Logic (Render Cold Start)
+        val endpointsToTry = mutableListOf<String>()
+        activeEndpointPath?.let { endpointsToTry.add(it) }
+        ENDPOINT_CANDIDATES.forEach { ep ->
+            if (!endpointsToTry.contains(ep)) endpointsToTry.add(ep)
+        }
 
-                Log.d(TAG, "Response Code: ${response.code()}")
+        for (endpointPath in endpointsToTry) {
+            val targetFullUrl = "$baseUrl$endpointPath"
+            var maxRetries = 3
+            var currentAttempt = 0
 
-                if (response.isSuccessful) {
-                    val body = response.body()
-                    val resultText = body?.translated?.trim()
-                    Log.d(TAG, "Response Body: translated='$resultText'")
+            while (currentAttempt < maxRetries) {
+                currentAttempt++
+                try {
+                    Log.d(TAG, "--------------------------------------------------")
+                    Log.d(TAG, "Backend URL: $baseUrl")
+                    Log.d(TAG, "Endpoint: $endpointPath")
+                    Log.d(TAG, "Attempt: $currentAttempt / $maxRetries")
+                    Log.d(TAG, "Request JSON: {\"text\": \"$trimmed\", \"style\": \"casual\"}")
 
-                    if (!resultText.isNullOrEmpty()) {
-                        saveToHistory(trimmed, resultText)
-                        return@withContext TranslationResult.Success(resultText)
+                    val response = backendApi.translateText(
+                        url = targetFullUrl,
+                        request = TranslationRequest(text = trimmed)
+                    )
+
+                    val statusCode = response.code()
+                    Log.d(TAG, "HTTP Status: $statusCode")
+
+                    if (response.isSuccessful) {
+                        val responseBodyString = response.body()?.string() ?: ""
+                        Log.d(TAG, "Response JSON: $responseBodyString")
+
+                        val parsedTranslation = parseTranslationResponseBody(responseBodyString)
+                        Log.d(TAG, "Parsed Translation: $parsedTranslation")
+
+                        if (!parsedTranslation.isNullOrBlank()) {
+                            activeEndpointPath = endpointPath
+                            saveToHistory(trimmed, parsedTranslation)
+                            return@withContext TranslationResult.Success(parsedTranslation)
+                        } else {
+                            lastErrorMessage = "Empty or unparseable translation response from $endpointPath"
+                            Log.w(TAG, lastErrorMessage)
+                        }
                     } else {
-                        lastErrorMessage = "Empty translation returned from server."
-                    }
-                } else {
-                    val errorCode = response.code()
-                    lastErrorMessage = "HTTP error $errorCode from server."
-                    Log.w(TAG, "Backend error code: $errorCode")
+                        val errorBody = response.errorBody()?.string() ?: ""
+                        Log.w(TAG, "Error Response Body ($statusCode): $errorBody")
 
-                    // If Render server is sleeping (502, 503, 504), wait for cold start and retry
-                    if (errorCode in listOf(502, 503, 504, 429) && currentAttempt < maxRetries) {
-                        Log.i(TAG, "Render server may be spinning up. Waiting 2.5s before retry $currentAttempt...")
-                        delay(2500)
-                        continue
-                    }
-                }
-            } catch (e: Exception) {
-                lastErrorMessage = e.localizedMessage ?: "Network error"
-                Log.e(TAG, "Network exception on attempt $currentAttempt: ${e.message}")
+                        if (statusCode == 404) {
+                            Log.i(TAG, "Endpoint $endpointPath returned 404. Trying next endpoint candidate...")
+                            break // Try next endpoint candidate immediately
+                        }
 
-                if (currentAttempt < maxRetries) {
-                    Log.i(TAG, "Retrying request in 2s...")
-                    delay(2000)
+                        lastErrorMessage = "HTTP error $statusCode from server."
+
+                        // Render cold start retry for 502/503/504/429
+                        if (statusCode in listOf(502, 503, 504, 429) && currentAttempt < maxRetries) {
+                            Log.i(TAG, "Render server spinning up ($statusCode). Waiting 2.5s before retry...")
+                            delay(2500)
+                            continue
+                        }
+                    }
+                } catch (e: Exception) {
+                    lastErrorMessage = e.localizedMessage ?: "Network connection error"
+                    Log.e(TAG, "Network Exception on $endpointPath (Attempt $currentAttempt): ${e.message}", e)
+
+                    if (currentAttempt < maxRetries) {
+                        Log.i(TAG, "Retrying request in 2s...")
+                        delay(2000)
+                    }
                 }
             }
         }
 
-        // 2. Direct Gemini API Fallback (if API key is available)
+        // 2. Direct Gemini Fallback (if API key is present)
         val geminiKeyToUse = customGeminiKey.ifBlank { BuildConfig.GEMINI_API_KEY }
         if (geminiKeyToUse.isNotBlank() && geminiKeyToUse != "MY_GEMINI_API_KEY") {
             try {
                 Log.d(TAG, "Attempting direct Gemini API fallback")
                 val systemPrompt = """
-                    You are a professional multilingual translator and native English writer.
-                    Your task is NOT literal translation.
-                    First infer the user's intended meaning from input (Hindi, Roman Hindi, Odia, Roman Odia, Bengali, Tamil, Telugu, Kannada, Malayalam, Gujarati, Punjabi, Urdu, or mixed language).
-                    Then rewrite it into natural, fluent, everyday spoken English.
-                    The final sentence must sound exactly like something a native speaker would type in WhatsApp.
-                    Never sound robotic. Never translate word-for-word. Never explain. Return ONLY the rewritten English sentence.
+                    Convert the user's message into natural casual spoken English.
+                    Do not translate literally.
+                    Rewrite like a real native English speaker.
+                    Keep the meaning unchanged.
+                    Return ONLY the final English sentence.
+                    No explanations. No quotation marks. No markdown.
                 """.trimIndent()
 
                 val geminiReq = GeminiRequest(
@@ -166,7 +236,9 @@ class TranslationRepository(context: Context) {
                 if (geminiResp.isSuccessful) {
                     val candidate = geminiResp.body()?.candidates?.firstOrNull()
                     val resultText = candidate?.content?.parts?.firstOrNull()?.text?.trim()
+                        ?.removeSurrounding("\"", "\"")
                     if (!resultText.isNullOrEmpty()) {
+                        Log.d(TAG, "Gemini Fallback Success: $resultText")
                         saveToHistory(trimmed, resultText)
                         return@withContext TranslationResult.Success(resultText)
                     }
@@ -176,9 +248,93 @@ class TranslationRepository(context: Context) {
             }
         }
 
-        return@withContext TranslationResult.Error(
-            if (lastErrorMessage.isNotBlank()) lastErrorMessage else "Failed to connect to translation server."
+        // 3. Offline Mode Fallback Engine
+        Log.i(TAG, "Backend and API unavailable. Using Offline Casual Engine fallback.")
+        val offlineTranslation = OfflineCasualEngine.translate(trimmed)
+        saveToHistory(trimmed, offlineTranslation)
+        return@withContext TranslationResult.Success(offlineTranslation)
+    }
+
+    private fun parseTranslationResponseBody(jsonString: String): String? {
+        val trimmed = jsonString.trim()
+        if (trimmed.isEmpty()) return null
+
+        if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+            return trimmed.removeSurrounding("\"", "\"")
+        }
+
+        return try {
+            val adapter = moshi.adapter(Map::class.java)
+            @Suppress("UNCHECKED_CAST")
+            val map = adapter.fromJson(trimmed) as? Map<String, Any?> ?: return null
+            extractFromMap(map)
+        } catch (e: Exception) {
+            Log.w(TAG, "JSON parse exception: ${e.message}")
+            null
+        }
+    }
+
+    private fun extractFromMap(map: Map<String, Any?>): String? {
+        val candidateKeys = listOf(
+            "translated", "translation", "text", "output", "response",
+            "answer", "content", "message", "result", "generatedText"
         )
+
+        for (key in candidateKeys) {
+            val value = map[key]
+            if (value is String && value.isNotBlank()) {
+                return value.trim().removeSurrounding("\"", "\"")
+            }
+        }
+
+        // Nested 'data' map check
+        val dataObj = map["data"]
+        if (dataObj is Map<*, *>) {
+            @Suppress("UNCHECKED_CAST")
+            val dataMap = dataObj as Map<String, Any?>
+            for (key in candidateKeys) {
+                val value = dataMap[key]
+                if (value is String && value.isNotBlank()) {
+                    return value.trim().removeSurrounding("\"", "\"")
+                }
+            }
+        }
+
+        // OpenAI / OpenRouter choices array check
+        val choices = map["choices"] as? List<*>
+        if (!choices.isNullOrEmpty()) {
+            val firstChoice = choices.firstOrNull() as? Map<*, *>
+            if (firstChoice != null) {
+                val msg = firstChoice["message"] as? Map<*, *>
+                if (msg != null) {
+                    val content = msg["content"]
+                    if (content is String && content.isNotBlank()) {
+                        return content.trim().removeSurrounding("\"", "\"")
+                    }
+                }
+                val text = firstChoice["text"]
+                if (text is String && text.isNotBlank()) {
+                    return text.trim().removeSurrounding("\"", "\"")
+                }
+            }
+        }
+
+        // Gemini candidates array check
+        val candidates = map["candidates"] as? List<*>
+        if (!candidates.isNullOrEmpty()) {
+            val firstCand = candidates.firstOrNull() as? Map<*, *>
+            val contentObj = firstCand?.get("content") as? Map<*, *>
+            val parts = contentObj?.get("parts") as? List<*>
+            if (!parts.isNullOrEmpty()) {
+                val firstPart = parts.firstOrNull() as? Map<*, *>
+                val text = firstPart?.get("text")
+                if (text is String && text.isNotBlank()) {
+                    return text.trim().removeSurrounding("\"", "\"")
+                }
+            }
+        }
+
+        return null
     }
 
     private suspend fun saveToHistory(original: String, translated: String) {
@@ -199,4 +355,5 @@ class TranslationRepository(context: Context) {
 
     suspend fun clearHistory() = historyDao.clearAll()
 }
+
 

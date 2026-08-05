@@ -3,11 +3,14 @@ package com.example.ime
 import android.content.ClipboardManager
 import android.content.Context
 import android.inputmethodservice.InputMethodService
+import android.media.AudioManager
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.ExtractedTextRequest
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -17,12 +20,12 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import androidx.lifecycle.setViewTreeLifecycleOwner
-import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import com.example.data.local.AppDatabase
 import com.example.data.local.DataStoreManager
 import com.example.data.repository.TranslationRepository
@@ -30,6 +33,7 @@ import com.example.ui.theme.AICasualEnglishKeyboardTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -48,13 +52,21 @@ class AiKeyboardService : InputMethodService(), LifecycleOwner, SavedStateRegist
     private lateinit var dataStoreManager: DataStoreManager
     private lateinit var repository: TranslationRepository
     private var vibrator: Vibrator? = null
+    private var audioManager: AudioManager? = null
 
     private var currentText by mutableStateOf("")
     private var translatedText by mutableStateOf<String?>(null)
     private var isLoading by mutableStateOf(false)
     private var selectedTone by mutableStateOf("Casual & Natural")
-    private var hapticEnabled = true
+    private var selectedSourceLanguage by mutableStateOf("Auto-detect")
+    private var autoTranslateEnabled by mutableStateOf(true)
+    private var realtimePreviewEnabled by mutableStateOf(true)
+    private var hapticEnabled by mutableStateOf(true)
+    private var soundEnabled by mutableStateOf(true)
+    private var debounceDelayMs by mutableStateOf(350)
     private var clipboardClips = mutableListOf<String>()
+
+    private var translationJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -65,10 +77,20 @@ class AiKeyboardService : InputMethodService(), LifecycleOwner, SavedStateRegist
         val database = AppDatabase.getDatabase(this)
         repository = TranslationRepository(database.translationHistoryDao())
         vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
+        observeSettings()
+    }
+
+    private fun observeSettings() {
         scope.launch {
             selectedTone = dataStoreManager.selectedTone.first()
+            selectedSourceLanguage = dataStoreManager.selectedSourceLanguage.first()
+            autoTranslateEnabled = dataStoreManager.autoTranslateEnabled.first()
+            realtimePreviewEnabled = dataStoreManager.realtimePreviewEnabled.first()
             hapticEnabled = dataStoreManager.hapticFeedback.first()
+            soundEnabled = dataStoreManager.soundFeedback.first()
+            debounceDelayMs = dataStoreManager.debounceDelayMs.first()
         }
     }
 
@@ -89,23 +111,39 @@ class AiKeyboardService : InputMethodService(), LifecycleOwner, SavedStateRegist
                     translatedText = translatedText,
                     isLoading = isLoading,
                     selectedTone = selectedTone,
+                    selectedSourceLanguage = selectedSourceLanguage,
+                    autoTranslateEnabled = autoTranslateEnabled,
+                    realtimePreviewEnabled = realtimePreviewEnabled,
                     clipboardClips = clipboardClips,
                     onKeyPress = { char -> handleKeyPress(char) },
                     onBackspace = { handleBackspace() },
                     onSpace = { handleKeyPress(" ") },
                     onEnter = { handleEnter() },
-                    onTranslateClick = { performCasualTranslation() },
+                    onTranslateClick = { triggerManualTranslation() },
                     onApplyTranslation = { applyTranslatedText(it) },
                     onToneSelect = { tone ->
                         selectedTone = tone
                         scope.launch { dataStoreManager.saveSelectedTone(tone) }
                         if (currentText.isNotBlank()) {
-                            performCasualTranslation()
+                            triggerDebouncedTranslation()
                         }
+                    },
+                    onLanguageSelect = { lang ->
+                        selectedSourceLanguage = lang
+                        scope.launch { dataStoreManager.setSelectedSourceLanguage(lang) }
+                        if (currentText.isNotBlank()) {
+                            triggerDebouncedTranslation()
+                        }
+                    },
+                    onToggleAutoTranslate = { enabled ->
+                        autoTranslateEnabled = enabled
+                        scope.launch { dataStoreManager.setAutoTranslateEnabled(enabled) }
                     },
                     onSelectClip = { clip ->
                         currentInputConnection?.commitText(clip, 1)
-                        triggerHaptic()
+                        triggerFeedback()
+                        syncCurrentTextFromConnection()
+                        triggerDebouncedTranslation()
                     }
                 )
             }
@@ -117,46 +155,88 @@ class AiKeyboardService : InputMethodService(), LifecycleOwner, SavedStateRegist
         super.onStartInput(attribute, restarting)
         syncCurrentTextFromConnection()
         translatedText = null
+        translationJob?.cancel()
     }
 
     private fun syncCurrentTextFromConnection() {
         val ic = currentInputConnection ?: return
-        val extracted = ic.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0)
+        val extracted = ic.getExtractedText(ExtractedTextRequest(), 0)
         currentText = extracted?.text?.toString() ?: ""
     }
 
     private fun handleKeyPress(text: String) {
-        triggerHaptic()
+        triggerFeedback()
         val ic = currentInputConnection ?: return
         ic.commitText(text, 1)
         syncCurrentTextFromConnection()
-        translatedText = null
+        triggerDebouncedTranslation()
     }
 
     private fun handleBackspace() {
-        triggerHaptic()
+        triggerFeedback()
         val ic = currentInputConnection ?: return
         val selected = ic.getSelectedText(0)
-        if (!selected.isNull_or_empty()) {
+        if (!selected.isNullOrEmpty()) {
             ic.commitText("", 1)
         } else {
             ic.deleteSurroundingText(1, 0)
         }
         syncCurrentTextFromConnection()
-        translatedText = null
+        if (currentText.isBlank()) {
+            translationJob?.cancel()
+            translatedText = null
+            isLoading = false
+        } else {
+            triggerDebouncedTranslation()
+        }
     }
 
     private fun handleEnter() {
-        triggerHaptic()
+        triggerFeedback()
         val ic = currentInputConnection ?: return
-        ic.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER))
-        ic.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_ENTER))
+
+        // If auto-translate is enabled or a translation preview exists, replace original with English translation
+        val translationToApply = translatedText
+        if ((autoTranslateEnabled || !translationToApply.isNullOrBlank()) && !translationToApply.isNullOrBlank()) {
+            applyTranslatedText(translationToApply)
+        }
+
+        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
+        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
         syncCurrentTextFromConnection()
         translatedText = null
     }
 
-    private fun performCasualTranslation() {
-        triggerHaptic()
+    private fun triggerDebouncedTranslation() {
+        if (!realtimePreviewEnabled) return
+        val textToTranslate = currentText.trim()
+        if (textToTranslate.isBlank() || textToTranslate.length < 2) {
+            translationJob?.cancel()
+            translatedText = null
+            isLoading = false
+            return
+        }
+
+        translationJob?.cancel()
+        translationJob = scope.launch {
+            delay(debounceDelayMs.toLong())
+            isLoading = true
+            val result = repository.translateToCasualEnglish(
+                originalText = textToTranslate,
+                sourceLanguage = selectedSourceLanguage,
+                tone = selectedTone
+            )
+            isLoading = false
+            result.onSuccess { casual ->
+                translatedText = casual
+            }.onFailure {
+                // If translation fails, leave preview as null
+            }
+        }
+    }
+
+    private fun triggerManualTranslation() {
+        triggerFeedback()
         syncCurrentTextFromConnection()
         val textToTranslate = currentText.ifBlank {
             currentInputConnection?.getSelectedText(0)?.toString() ?: ""
@@ -166,8 +246,11 @@ class AiKeyboardService : InputMethodService(), LifecycleOwner, SavedStateRegist
 
         isLoading = true
         scope.launch {
-            val customKey = dataStoreManager.customApiKey.first()
-            val result = repository.translateToCasualEnglish(textToTranslate, selectedTone, customKey)
+            val result = repository.translateToCasualEnglish(
+                originalText = textToTranslate,
+                sourceLanguage = selectedSourceLanguage,
+                tone = selectedTone
+            )
             isLoading = false
             result.onSuccess { casual ->
                 translatedText = casual
@@ -178,10 +261,9 @@ class AiKeyboardService : InputMethodService(), LifecycleOwner, SavedStateRegist
     }
 
     private fun applyTranslatedText(replacementText: String) {
-        triggerHaptic()
+        triggerFeedback()
         val ic = currentInputConnection ?: return
-        // Select all text in the field and replace with translated casual English
-        val extracted = ic.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0)
+        val extracted = ic.getExtractedText(ExtractedTextRequest(), 0)
         val fullLength = extracted?.text?.length ?: 0
         if (fullLength > 0) {
             ic.setSelection(0, fullLength)
@@ -202,9 +284,8 @@ class AiKeyboardService : InputMethodService(), LifecycleOwner, SavedStateRegist
                 for (i in 0 until primaryClip.itemCount) {
                     val clipText = primaryClip.getItemAt(i).text?.toString()
                     if (!clipText.isNullOrBlank()) {
-                        val validText = clipText
-                        if (!clipboardClips.contains(validText)) {
-                            clipboardClips.add(validText)
+                        if (!clipboardClips.contains(clipText)) {
+                            clipboardClips.add(clipText)
                         }
                     }
                 }
@@ -213,21 +294,24 @@ class AiKeyboardService : InputMethodService(), LifecycleOwner, SavedStateRegist
         }
     }
 
-    private fun triggerHaptic() {
-        if (!hapticEnabled) return
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator?.vibrate(VibrationEffect.createOneShot(15, VibrationEffect.DEFAULT_AMPLITUDE))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator?.vibrate(15)
-            }
-        } catch (_: Exception) {
+    private fun triggerFeedback() {
+        if (soundEnabled) {
+            try {
+                audioManager?.playSoundEffect(AudioManager.FX_KEYPRESS_STANDARD, 0.5f)
+            } catch (_: Exception) {}
+        }
+
+        if (hapticEnabled) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator?.vibrate(VibrationEffect.createOneShot(12, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator?.vibrate(12)
+                }
+            } catch (_: Exception) {}
         }
     }
-
-    private fun CharSequence?.isNull_or_empty(): Boolean = this == null || this.isEmpty()
-    private fun CharSequence?.isNull_or_blank(): Boolean = this == null || this.isBlank()
 
     override fun onDestroy() {
         super.onDestroy()

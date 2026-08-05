@@ -71,7 +71,7 @@ fun KeyboardView(
         activePopUpKey?.let { popup ->
             LongPressPopupView(
                 alternatives = popup.alternatives,
-                onSelect = { alt ->
+                onSelectAlternative = { alt ->
                     onKeyPress(alt)
                     activePopUpKey = null
                 }
@@ -131,7 +131,6 @@ fun KeyboardView(
             KeyboardMode.EMOJI -> {
                 EmojiPickerView(
                     onEmojiSelect = onKeyPress,
-                    onBackspace = onBackspace,
                     onModeChange = { mode = it }
                 )
             }

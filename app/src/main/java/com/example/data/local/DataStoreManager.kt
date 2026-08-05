@@ -19,6 +19,7 @@ class DataStoreManager(private val context: Context) {
         val KEY_VIBRATION_ENABLED = booleanPreferencesKey("vibration_enabled")
         val KEY_SOUND_ENABLED = booleanPreferencesKey("sound_enabled")
         val KEY_AUTO_TRANSLATE = booleanPreferencesKey("auto_translate")
+        val KEY_REALTIME_TRANSLATE = booleanPreferencesKey("realtime_translate")
         val KEY_BACKEND_URL = stringPreferencesKey("backend_url")
         val KEY_GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val KEY_AUTO_CAPITALIZE = booleanPreferencesKey("auto_capitalize")
@@ -39,7 +40,11 @@ class DataStoreManager(private val context: Context) {
     }
 
     val autoTranslate: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[KEY_AUTO_TRANSLATE] ?: false
+        prefs[KEY_AUTO_TRANSLATE] ?: true
+    }
+
+    val realTimeTranslate: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_REALTIME_TRANSLATE] ?: true
     }
 
     val backendUrl: Flow<String> = context.dataStore.data.map { prefs ->
@@ -68,6 +73,10 @@ class DataStoreManager(private val context: Context) {
 
     suspend fun setAutoTranslate(enabled: Boolean) {
         context.dataStore.edit { prefs -> prefs[KEY_AUTO_TRANSLATE] = enabled }
+    }
+
+    suspend fun setRealTimeTranslate(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[KEY_REALTIME_TRANSLATE] = enabled }
     }
 
     suspend fun setBackendUrl(url: String) {

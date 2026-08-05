@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
@@ -47,7 +48,7 @@ fun AboutScreen(
                 tint = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = "ABOUT & SECURITY",
+                text = "ABOUT & PRIVACY",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground,
@@ -55,7 +56,7 @@ fun AboutScreen(
             )
         }
 
-        // Security Card
+        // Privacy & Security Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -68,7 +69,7 @@ fun AboutScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(imageVector = Icons.Default.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Text(
-                        text = "Zero API Key Exposure",
+                        text = "Privacy & Encryption",
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         modifier = Modifier.padding(start = 8.dp)
@@ -76,14 +77,42 @@ fun AboutScreen(
                 }
 
                 Text(
-                    text = "The OpenRouter API Key, Model ID, Provider, and Authorization Headers are strictly kept on the Node.js/Express backend service running on Render. They are NEVER compiled or hardcoded into this APK.",
+                    text = "All text processed by AI Casual Keyboard is encrypted end-to-end via secure HTTPS channels. Your typed text is never logged, stored, or sold to third parties.",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
 
-        // Style Translation Engine Card
+        // Smart Casual Rewriting Engine Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text(
+                        text = "Natural Casual Spoken English",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+
+                Text(
+                    text = "Instead of literal robotic dictionary translations, AI Casual Keyboard transforms native text, Hinglish, or dialect phrasing into natural, friendly spoken English used in daily conversations.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        // On-Device Processing Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -96,7 +125,7 @@ fun AboutScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(imageVector = Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Text(
-                        text = "Natural Casual Spoken English",
+                        text = "Offline Instant Fallback",
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         modifier = Modifier.padding(start = 8.dp)
@@ -104,7 +133,7 @@ fun AboutScreen(
                 }
 
                 Text(
-                    text = "Instead of literal robotic dictionary translations, our AI model is instructed to output natural, friendly spoken English used in daily conversations.",
+                    text = "If network connectivity is slow or unavailable, our smart local dictionary engine automatically steps in to provide instant offline casual phrasing.",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

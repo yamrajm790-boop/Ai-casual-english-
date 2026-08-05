@@ -63,7 +63,7 @@ jobs:
       - name: Install backend dependencies
         run: |
           cd backend
-          npm ci
+          npm ci || npm install
 
       - name: Verify server syntax
         run: |

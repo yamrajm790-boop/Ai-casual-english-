@@ -178,6 +178,64 @@ fun HomeScreen(
             }
         }
 
+        // In-App Update Card
+        var isCheckingUpdate by remember { mutableStateOf(false) }
+        var updateStatusText by remember { mutableStateOf("App is up to date (v1.0.0)") }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = updateStatusText,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        isCheckingUpdate = true
+                        updateStatusText = "Checking for updates..."
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            isCheckingUpdate = false
+                            updateStatusText = "App is up to date (v1.0.0)"
+                            Toast.makeText(context, "You are using the latest version of AI Keyboard!", Toast.LENGTH_SHORT).show()
+                        }, 1200)
+                    },
+                    enabled = !isCheckingUpdate,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Text(
+                        text = if (isCheckingUpdate) "Checking..." else "Check Update",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+        }
+
         // Setup Wizard Card
         Text(
             text = "SETUP WIZARD",
